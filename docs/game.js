@@ -635,8 +635,9 @@ function drawPerson(p, opts = {}) {
   ctx.beginPath(); ctx.arc(x - 3 * sc + p.face * 1.5, hy + 1, 1.3 * sc, 0, TAU); ctx.arc(x + 3 * sc + p.face * 1.5, hy + 1, 1.3 * sc, 0, TAU); ctx.fill();
   // carried stack
   if (p.stack && p.stack.length) {
-    const gap = { shake: 12, water: 11 }[p.stack[0]] || 7;
-    for (let i = 0; i < p.stack.length; i++) drawItem(p.stack[i], x + Math.sin(p.bob * 0.5 + i * 0.4) * (p.moving ? i * 0.25 : 0), by - 14 * sc - i * gap, sc);
+    // the stack sits on top of the head (base just above the hair) and scales with the character
+    const gap = ({ shake: 12, water: 11 }[p.stack[0]] || 7) * sc, base = hy - 13 * sc;
+    for (let i = 0; i < p.stack.length; i++) drawItem(p.stack[i], x + Math.sin(p.bob * 0.5 + i * 0.4) * (p.moving ? i * 0.25 : 0), base - i * gap, sc);
   }
   if (p.holding) drawItem(p.holding, x + 10, by + 4, 0.7);
   // speech bubble
@@ -913,7 +914,7 @@ function draw() {
 
   // stack-full hint
   const P = G.player;
-  if (P.stack.length >= playerCap()) { ctx.fillStyle = "#ff5a6e"; ctx.font = "900 11px system-ui"; ctx.textAlign = "center"; ctx.fillText("MAX", P.x, P.y - 56 - P.stack.length * ({ shake: 12, water: 11 }[P.stack[0]] || 7)); }
+  if (P.stack.length >= playerCap()) { ctx.fillStyle = "#ff5a6e"; ctx.font = "900 11px system-ui"; ctx.textAlign = "center"; ctx.fillText("MAX", P.x, P.y - 62 - P.stack.length * ({ shake: 12, water: 11 }[P.stack[0]] || 7) * 1.12); }
 
   // flying items
   for (const f of G.fly) {
