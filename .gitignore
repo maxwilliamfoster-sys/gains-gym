@@ -1,2 +1,3 @@
 docs/_*.js
 __pycache__/
+release/
