@@ -3,7 +3,7 @@
  * Gains Gym — an arcade-idle gym tycoon (Monkey Mart / Voodoo "arcade idle" style).
  *
  * Walk with the joystick (drag anywhere, or WASD / arrows).
- *  - Stand on the TOWEL SHELF zone: towels stack on your back. Walk to a machine's
+ *  - Stand on a SUPPLY zone (towel shelf; water cooler from gym 2): items stack on your back. Walk to a machine
  *    zone to drop them; members need a clean towel to work out.
  *  - Stand at the FRONT DESK to check members in (they pay a membership fee).
  *  - Finished workouts leave cash at the machine; walk over it to collect.
@@ -27,59 +27,108 @@ function fmt(n) {
 }
 
 // ------------------------------------------------------------------ world data
-const ROOM = { w: 432, h: 760 };
-const DOOR = { x: 372, y: 806 };
 const ZONE_R = 26;
 
-const GYMS = [
-  { name: "Garage Gains", mult: 1, floor: "#efe8da", tile: "#e6dece", wall: "#4b5070", mat: "#d6deec" },
-  { name: "Iron Temple", mult: 6, floor: "#e6edf5", tile: "#dae2ee", wall: "#3a4a5e", mat: "#f4dccb" },
-  { name: "Muscle Palace", mult: 36, floor: "#f4e9f1", tile: "#ecdbe7", wall: "#5b3f66", mat: "#d6eedb" },
-];
-function gymInfo(i) {
-  if (i < GYMS.length) return GYMS[i];
-  const g = GYMS[GYMS.length - 1], extra = i - GYMS.length + 2;
-  return { ...g, name: `${g.name} ${["", "", "II", "III", "IV", "V", "VI", "VII"][extra] || extra}`, mult: g.mult * Math.pow(6, extra - 1) };
-}
-
+// Every machine needs one supply item per workout: a towel, or (cardio, from gym 2)
+// a water bottle. `big` machines get a larger footprint.
 const MTYPES = {
-  bench: { name: "Bench Press", pay: 4, time: 4.0, color: "#3d8bff" },
-  tread: { name: "Treadmill", pay: 5, time: 4.5, color: "#2fbf71" },
-  squat: { name: "Squat Rack", pay: 7, time: 5.0, color: "#ff7a3d" },
-  dumb: { name: "Dumbbells", pay: 9, time: 5.0, color: "#a65cff" },
-  bag: { name: "Boxing Bag", pay: 12, time: 5.5, color: "#ff5a6e" },
+  // Garage Gains
+  bench: { name: "Bench Press", pay: 4, time: 4.0, color: "#3d8bff", needs: "towel", icon: "🏋️" },
+  tread: { name: "Treadmill", pay: 5, time: 4.5, color: "#2fbf71", needs: "towel", icon: "🏃" },
+  squat: { name: "Squat Rack", pay: 7, time: 5.0, color: "#ff7a3d", needs: "towel", icon: "🦵" },
+  dumb: { name: "Dumbbells", pay: 9, time: 5.0, color: "#a65cff", needs: "towel", icon: "💪" },
+  bag: { name: "Boxing Bag", pay: 12, time: 5.5, color: "#ff5a6e", needs: "towel", icon: "🥊" },
+  // Iron Temple
+  cable: { name: "Cable Machine", pay: 4, time: 4.0, color: "#1fb5c9", needs: "towel", icon: "🔗" },
+  rower: { name: "Rowing Machine", pay: 5, time: 4.5, color: "#2fbf71", needs: "water", icon: "🚣" },
+  bike: { name: "Spin Bike", pay: 6, time: 4.5, color: "#ffc531", needs: "water", icon: "🚴" },
+  legpress: { name: "Leg Press", pay: 7, time: 5.0, color: "#ff7a3d", needs: "towel", icon: "🦵" },
+  pullup: { name: "Pull-up Tower", pay: 9, time: 5.0, color: "#a65cff", needs: "towel", icon: "🧗" },
+  ropes: { name: "Battle Ropes", pay: 13, time: 5.5, color: "#ff5a6e", needs: "water", icon: "🪢", big: true },
+  // Muscle Palace
+  smith: { name: "Smith Machine", pay: 4, time: 4.0, color: "#3d8bff", needs: "towel", icon: "🏋️" },
+  pec: { name: "Pec Deck", pay: 5, time: 4.2, color: "#ff8fc7", needs: "towel", icon: "🦋" },
+  stair: { name: "Stair Climber", pay: 6, time: 4.5, color: "#2fbf71", needs: "water", icon: "🪜" },
+  climb: { name: "Climbing Wall", pay: 8, time: 5.0, color: "#ffc531", needs: "water", icon: "🧗" },
+  ring: { name: "Boxing Ring", pay: 14, time: 6.0, color: "#ff5a6e", needs: "towel", icon: "🥊", big: true },
+  sauna: { name: "Sauna", pay: 16, time: 6.0, color: "#c98e5a", needs: "towel", icon: "🧖", big: true },
 };
-// where members stand to use each machine; the towel drop zone is just below it
-const SLOTS = [
-  { type: "bench", x: 84, y: 120 }, { type: "bench", x: 216, y: 120 }, { type: "tread", x: 348, y: 120 },
-  { type: "tread", x: 348, y: 250 }, { type: "squat", x: 84, y: 250 }, { type: "squat", x: 216, y: 250 },
-  { type: "dumb", x: 84, y: 380 }, { type: "bag", x: 216, y: 380 },
-];
-const SHELF = { x: 30, y: 520, zx: 82, zy: 520 };
-const BIN = { x: 200, y: 520 };
-const MAKER = { x: 396, y: 410, zx: 344, zy: 410 };
-const COUNTER = { x: 396, y: 555, zx: 344, zy: 520, cx: 396, cy: 612 };
-const COUNTER_Q = [[332, 585], [292, 600], [252, 610], [212, 615]];
-const DESK = { x: 100, y: 652, zx: 100, zy: 704, cx: 168, cy: 660 };
-const DESK_Q = [[100, 608], [142, 604], [184, 604], [226, 606], [268, 610]];
-const LOBBY = [[262, 690], [302, 700], [262, 730], [302, 735], [222, 720]];
 
-// The build order. Two pads are offered at a time.
-const UNLOCKS = [
-  { id: "m1", kind: "machine", slot: 1, cost: 10 },
-  { id: "m2", kind: "machine", slot: 2, cost: 25 },
-  { id: "shake", kind: "shake", cost: 60, x: COUNTER.zx, y: COUNTER.zy - 8 },
-  { id: "m3", kind: "machine", slot: 3, cost: 100 },
-  { id: "recep", kind: "hire", role: "recep", cost: 150, x: 34, y: 700, label: "Receptionist" },
-  { id: "m4", kind: "machine", slot: 4, cost: 220 },
-  { id: "towel", kind: "hire", role: "towel", cost: 300, x: 140, y: 470, label: "Towel staff" },
-  { id: "m5", kind: "machine", slot: 5, cost: 400 },
-  { id: "m6", kind: "machine", slot: 6, cost: 550 },
-  { id: "barista", kind: "hire", role: "barista", cost: 700, x: 290, y: 470, label: "Barista" },
-  { id: "m7", kind: "machine", slot: 7, cost: 900 },
-  { id: "next", kind: "next", cost: 2000, x: 216, y: 470 },
+// Each gym is its own room: size, door, stations, machine slots and build order.
+// Slot (x, y) is where the member stands; the supply drop zone is 48 below it.
+const LAYOUTS = [
+  { // ---- Garage Gains: small, one supply (towels)
+    name: "Garage Gains", mult: 1, floor: "#efe8da", tile: "#e6dece", wall: "#4b5070", mat: "#d6deec",
+    room: { w: 432, h: 760 }, door: 372, start: [216, 560],
+    slots: [["bench", 84, 120], ["bench", 216, 120], ["tread", 348, 120], ["tread", 348, 250], ["squat", 84, 250], ["squat", 216, 250], ["dumb", 84, 380], ["bag", 216, 380]],
+    supplies: [{ item: "towel", x: 30, y: 520, zx: 82, zy: 520 }],
+    bin: [200, 520],
+    maker: { x: 396, y: 410, zx: 344, zy: 410 },
+    counter: { x: 396, y: 555, zx: 344, zy: 520, cx: 396, cy: 612, q: [[332, 585], [292, 600], [252, 610], [212, 615]] },
+    desk: { x: 100, y: 652, zx: 100, zy: 704, cx: 168, cy: 660, q: [[100, 608], [142, 604], [184, 604], [226, 606], [268, 610]] },
+    lobby: [[262, 690], [302, 700], [262, 730], [302, 735], [222, 720]],
+    unlocks: [
+      ["m1", 10], ["m2", 25], ["shake", 60], ["m3", 100], ["hire:recep", 150, 34, 700], ["m4", 220],
+      ["hire:towel", 300, 140, 470], ["m5", 400], ["m6", 550], ["hire:barista", 700, 290, 470], ["m7", 900], ["next", 2000, 216, 470],
+    ],
+  },
+  { // ---- Iron Temple: wide hall, ropes in the middle, towels AND water
+    name: "Iron Temple", mult: 6, floor: "#e6edf5", tile: "#dae2ee", wall: "#3a4a5e", mat: "#f4dccb",
+    room: { w: 520, h: 820 }, door: 260, start: [260, 600],
+    slots: [["cable", 90, 110], ["rower", 260, 110], ["cable", 430, 110], ["bike", 430, 235], ["legpress", 90, 235], ["bike", 430, 360], ["pullup", 90, 360], ["ropes", 260, 270]],
+    supplies: [{ item: "towel", x: 30, y: 500, zx: 82, zy: 500 }, { item: "water", x: 490, y: 500, zx: 438, zy: 500 }],
+    bin: [260, 430],
+    maker: { x: 30, y: 690, zx: 82, zy: 690 },
+    counter: { x: 165, y: 612, zx: 165, zy: 664, cx: 222, cy: 616, q: [[165, 570], [205, 562], [245, 558], [285, 560]] },
+    desk: { x: 420, y: 716, zx: 420, zy: 768, cx: 488, cy: 724, q: [[420, 672], [378, 668], [336, 668], [294, 672], [252, 678]] },
+    lobby: [[190, 770], [150, 785], [190, 800], [110, 775], [230, 795]],
+    unlocks: [
+      // wider room + two supplies = more running, so it's cheaper early and the receptionist comes sooner
+      ["m1", 10], ["m2", 25], ["shake", 40], ["hire:recep", 60, 490, 790], ["m3", 120], ["m4", 220],
+      ["hire:towel", 300, 160, 450], ["m5", 380], ["hire:water", 460, 360, 450], ["m6", 560], ["hire:barista", 700, 82, 770], ["m7", 900], ["next", 2000, 260, 520],
+    ],
+  },
+  { // ---- Muscle Palace: big room, 9 stations, boxing ring + sauna
+    name: "Muscle Palace", mult: 36, floor: "#f4e9f1", tile: "#ecdbe7", wall: "#5b3f66", mat: "#d6eedb",
+    room: { w: 560, h: 860 }, door: 70, start: [280, 600],
+    slots: [["smith", 85, 110], ["pec", 215, 110], ["stair", 345, 110], ["stair", 475, 110], ["smith", 85, 240], ["climb", 215, 240], ["pec", 475, 240],
+      ["ring", 345, 285], ["sauna", 475, 420]],
+    supplies: [{ item: "towel", x: 30, y: 400, zx: 82, zy: 400 }, { item: "water", x: 215, y: 395, zx: 215, zy: 447 }],
+    bin: [345, 450],
+    maker: { x: 530, y: 600, zx: 478, zy: 600 },
+    counter: { x: 420, y: 700, zx: 420, zy: 752, cx: 488, cy: 708, q: [[420, 656], [380, 650], [340, 646], [300, 646]] },
+    desk: { x: 170, y: 740, zx: 170, zy: 792, cx: 238, cy: 748, q: [[170, 696], [128, 690], [86, 686], [44, 690], [44, 650]] },
+    lobby: [[300, 790], [340, 805], [300, 830], [260, 815], [380, 830]],
+    unlocks: [
+      ["m1", 10], ["m2", 25], ["shake", 50], ["m3", 90], ["hire:recep", 120, 250, 830], ["m4", 220], ["hire:towel", 300, 120, 520],
+      ["m5", 380], ["hire:water", 460, 290, 520], ["m6", 560], ["hire:barista", 700, 530, 790], ["m7", 800], ["m8", 1000], ["next", 2200, 280, 600],
+    ],
+  },
 ];
-for (const u of UNLOCKS) if (u.kind === "machine") { u.x = SLOTS[u.slot].x; u.y = SLOTS[u.slot].y; }
+const ROLE_LABEL = { recep: "Receptionist", towel: "Towel staff", water: "Water staff", barista: "Barista" };
+
+// Current layout (set by loadLayout before every gym is built).
+let L, ROOM, DOOR, SLOTS, SUPPLIES, BIN, MAKER, COUNTER, COUNTER_Q, DESK, DESK_Q, LOBBY, UNLOCKS;
+function gymInfo(i) {
+  const base = LAYOUTS[i % LAYOUTS.length], lap = Math.floor(i / LAYOUTS.length);
+  const roman = lap === 0 ? "" : [" II", " III", " IV", " V", " VI", " VII", " VIII"][lap - 1] || ` ${lap + 1}`;
+  return { ...base, name: base.name + roman, mult: base.mult * Math.pow(216, lap) };
+}
+function loadLayout(i) {
+  L = gymInfo(i);
+  ROOM = L.room; DOOR = { x: L.door, y: L.room.h + 46 };
+  SLOTS = L.slots.map(([type, x, y]) => ({ type, x, y }));
+  SUPPLIES = L.supplies; BIN = { x: L.bin[0], y: L.bin[1] };
+  MAKER = L.maker; COUNTER = L.counter; COUNTER_Q = L.counter.q; DESK = L.desk; DESK_Q = L.desk.q; LOBBY = L.lobby;
+  UNLOCKS = L.unlocks.map(([id, cost, x, y]) => {
+    if (id[0] === "m") { const slot = +id.slice(1); return { id, kind: "machine", slot, cost, x: SLOTS[slot].x, y: SLOTS[slot].y }; }
+    if (id === "shake") return { id, kind: "shake", cost, x: COUNTER.zx, y: COUNTER.zy - 8 };
+    if (id === "next") return { id, kind: "next", cost, x, y };
+    const role = id.split(":")[1];
+    return { id: role, kind: "hire", role, cost, x, y, label: ROLE_LABEL[role] };
+  });
+}
+const supplyAt = (item) => SUPPLIES.find((s) => s.item === item);
 
 const UPGRADES = [
   { key: "speed", name: "Run Speed", icon: "👟", desc: "Move faster", max: 5, base: 35 },
@@ -145,17 +194,19 @@ const HAIR = ["#2b1d14", "#5a3a22", "#d9a441", "#111", "#8a4b2a", "#c7c7c7"];
 const SHIRTS = ["#ff7a3d", "#3d8bff", "#2fbf71", "#a65cff", "#ffc531", "#1fb5c9", "#8bc34a", "#6d7cff"];   // no red: red is YOU
 
 function buildGym() {
-  const info = gymInfo(save.gym);
+  loadLayout(save.gym);
+  const info = L;
   G = {
     info, t: 0,
-    player: { x: 216, y: 560, stack: [], face: 1, bob: 0, moving: false },
+    player: { x: L.start[0], y: L.start[1], stack: [], face: 1, bob: 0, moving: false },
     machines: [], members: [], staff: [], deskQ: [], counterQ: [], lobby: [],
-    shelf: { towels: 6, t: 0 }, maker: { shakes: 0, t: 0 }, counter: { shakes: 0 },
+    supply: Object.fromEntries(SUPPLIES.map((s) => [s.item, { count: 6, t: 0 }])),
+    maker: { shakes: 0, t: 0 }, counter: { shakes: 0 },
     deskCash: pile(DESK.cx, DESK.cy), counterCash: pile(COUNTER.cx, COUNTER.cy),
     shakeBuilt: false, spawnT: 1.5, deskT: 0,
     fly: [], texts: [], confetti: [], pads: [],
     xfer: 0, padT: 0, boostT: 0, boostOfferT: 50, income: 0, incomeT: 0,
-    cam: { x: 216, y: 560, z: 1 },
+    cam: { x: L.start[0], y: L.start[1], z: 1 },
   };
   for (const id of save.g.built) applyUnlock(id, true);
   refreshPads();
@@ -164,7 +215,9 @@ function buildGym() {
 function pile(x, y) { return { x, y, amt: 0, n: 0 }; }
 function addMachine(slot) {
   const s = SLOTS[slot], ty = MTYPES[s.type];
-  G.machines.push({ slot, type: s.type, ...ty, x: s.x, y: s.y, zx: s.x, zy: s.y + 48, towels: 2, user: null, cash: pile(s.x + 42, s.y + 12) });
+  const big = ty.big ? 1.35 : 1;
+  G.machines.push({ slot, type: s.type, ...ty, x: s.x, y: s.y, zx: s.x, zy: s.y + 48 * big, stock: 2, user: null,
+    cash: pile(s.x + 42 * big, s.y + 12) });
 }
 function applyUnlock(id, silent) {
   if (id === "m0") return addMachine(0);
@@ -205,9 +258,11 @@ function makeMember() {
     shirt: pick(SHIRTS), skin: pick(SKINS), hair: pick(HAIR), bob: rand(0, 6), patience: 40, bubble: null, mood: 0, machine: null, doneT: 0, face: 1 };
 }
 function makeStaff(role) {
-  const home = role === "recep" ? [DESK.zx, DESK.zy] : role === "towel" ? [SHELF.zx, SHELF.zy] : [MAKER.zx, MAKER.zy];
+  const sup = supplyAt(role);
+  const home = role === "recep" ? [DESK.zx, DESK.zy] : sup ? [sup.zx, sup.zy] : [MAKER.zx, MAKER.zy];
+  const shirt = { recep: "#2b2e45", towel: "#1fb5c9", water: "#3d8bff", barista: "#ff8fc7" }[role];
   return { role, x: home[0], y: home[1] + 30, tx: home[0], ty: home[1], stack: [], state: "toSource", wait: 0, bob: 0, face: 1,
-    shirt: role === "recep" ? "#2b2e45" : role === "towel" ? "#1fb5c9" : "#ff8fc7", skin: pick(SKINS), hair: pick(HAIR), cap: true, xfer: 0 };
+    shirt, skin: pick(SKINS), hair: pick(HAIR), cap: true, xfer: 0 };
 }
 function walk(p, speed, dt) {
   const dx = p.tx - p.x, dy = p.ty - p.y, d = Math.hypot(dx, dy);
@@ -303,8 +358,10 @@ function update(dt) {
   } else P.moving = false;
 
   // --- production
-  G.shelf.t += dt;
-  if (G.shelf.t > 0.9 && G.shelf.towels < 12) { G.shelf.t = 0; G.shelf.towels++; }
+  for (const s of SUPPLIES) {
+    const st = G.supply[s.item]; st.t += dt;
+    if (st.t > 0.9 && st.count < 12) { st.t = 0; st.count++; }
+  }
   if (G.shakeBuilt) { G.maker.t += dt; if (G.maker.t > 1.4 && G.maker.shakes < 8) { G.maker.t = 0; G.maker.shakes++; } }
 
   // --- player interactions (one item every ~0.08s)
@@ -312,13 +369,14 @@ function update(dt) {
   const near = (x, y, r = ZONE_R + 6) => dist(P.x, P.y, x, y) < r;
   if (G.xfer <= 0) {
     const top = P.stack[P.stack.length - 1];
-    if (near(SHELF.zx, SHELF.zy) && G.shelf.towels > 0 && (!top || top === "towel") && P.stack.length < playerCap()) {
-      G.shelf.towels--; P.stack.push("towel"); flyItem("towel", SHELF.x + 10, SHELF.y, P.x, P.y - 40); Snd.pickup(P.stack.length); G.xfer = 0.08;
+    const src = SUPPLIES.find((s) => near(s.zx, s.zy) && G.supply[s.item].count > 0 && (!top || top === s.item));
+    if (src && P.stack.length < playerCap()) {
+      G.supply[src.item].count--; P.stack.push(src.item); flyItem(src.item, src.x, src.y, P.x, P.y - 40); Snd.pickup(P.stack.length); G.xfer = 0.08;
     } else if (G.shakeBuilt && near(MAKER.zx, MAKER.zy) && G.maker.shakes > 0 && (!top || top === "shake") && P.stack.length < playerCap()) {
       G.maker.shakes--; P.stack.push("shake"); flyItem("shake", MAKER.x, MAKER.y, P.x, P.y - 40); Snd.pickup(P.stack.length); G.xfer = 0.08;
-    } else if (top === "towel") {
-      const m = G.machines.find((m) => near(m.zx, m.zy) && m.towels < 3);
-      if (m) { P.stack.pop(); m.towels++; flyItem("towel", P.x, P.y - 40, m.x, m.y); Snd.drop(m.towels); G.xfer = 0.1; }
+    } else if (top === "towel" || top === "water") {
+      const m = G.machines.find((m) => m.needs === top && near(m.zx, m.zy) && m.stock < 3);
+      if (m) { P.stack.pop(); m.stock++; flyItem(top, P.x, P.y - 40, m.x, m.y); Snd.drop(m.stock); G.xfer = 0.1; }
     } else if (top === "shake" && G.shakeBuilt && near(COUNTER.zx, COUNTER.zy) && G.counter.shakes < 8) {
       P.stack.pop(); G.counter.shakes++; flyItem("shake", P.x, P.y - 40, COUNTER.x, COUNTER.y); Snd.drop(G.counter.shakes); G.xfer = 0.1;
     }
@@ -330,12 +388,12 @@ function update(dt) {
   if (near(G.counterCash.x, G.counterCash.y, 40)) collect(G.counterCash);
 
   // --- build pads: stand on one and your cash drains into it
-  // a short dwell before paying, so walking across a pad on the way somewhere doesn't fund it
+  // pay only when you stop on a pad (or linger), so walking across one on the way somewhere doesn't fund it
   G.padT -= dt;
   for (const pad of G.pads) {
     if (!near(pad.x, pad.y, 30)) { pad.dwell = 0; continue; }
     pad.dwell = (pad.dwell || 0) + dt;
-    if (pad.dwell < 0.35 || save.cash < 1) continue;
+    if ((P.moving ? pad.dwell < 0.9 : pad.dwell < 0.25) || save.cash < 1) continue;
     const rate = Math.max(pad.cost / 1.4, 20) * dt;
     const amt = Math.min(rate, save.cash, pad.cost - pad.paid);
     save.cash -= amt; pad.paid += amt;
@@ -433,8 +491,8 @@ function updateMember(m, dt) {
   if (m.state === "findMachine" || (m.state === "lobby" && (m.retry = (m.retry || 0) - dt) <= 0)) {
     const free = G.machines.filter((x) => !x.user);
     if (free.length) {
-      const withTowels = free.filter((x) => x.towels > 0);
-      const mc = pick(withTowels.length ? withTowels : free);
+      const stocked = free.filter((x) => x.stock > 0);
+      const mc = pick(stocked.length ? stocked : free);
       mc.user = m; m.machine = mc; m.state = "toMachine"; m.tx = mc.x; m.ty = mc.y; m.bubble = null;
     } else {
       if (m.state !== "lobby") { const spot = LOBBY[G.members.indexOf(m) % LOBBY.length]; m.tx = spot[0] + rand(-6, 6); m.ty = spot[1]; m.state = "lobby"; }
@@ -442,9 +500,9 @@ function updateMember(m, dt) {
     }
   }
   if (m.state === "toMachine" && dist(m.x, m.y, m.machine.x, m.machine.y) < 2) { m.state = "needTowel"; m.patience = Math.max(m.patience, 30); }
-  if (m.state === "needTowel") {
-    if (m.machine.towels > 0) { m.machine.towels--; m.state = "workout"; m.doneT = m.machine.time * workoutMult(); m.bubble = null; }
-    else m.bubble = "towel";
+  if (m.state === "needTowel") {   // (waiting for this machine's supply item: towel or water)
+    if (m.machine.stock > 0) { m.machine.stock--; m.state = "workout"; m.doneT = m.machine.time * workoutMult(); m.bubble = null; }
+    else m.bubble = m.machine.needs;
   }
   if (m.state === "workout") {
     m.doneT -= dt; m.bob += dt * 10;
@@ -462,16 +520,18 @@ function updateMember(m, dt) {
 function updateStaff(s, dt) {
   const sp = staffSpeed();
   if (s.role === "recep") { s.tx = DESK.zx; s.ty = DESK.zy; walk(s, sp, dt); return; }
-  const towel = s.role === "towel";
-  const src = towel ? { x: SHELF.zx, y: SHELF.zy } : { x: MAKER.zx, y: MAKER.zy };
-  const item = towel ? "towel" : "shake";
-  if (!towel && !G.shakeBuilt) return;
+  // supply runners (towel / water) restock machines; the barista restocks the shake counter
+  const sup = supplyAt(s.role);
+  const runner = !!sup;
+  if (!runner && !G.shakeBuilt) return;
+  const src = runner ? { x: sup.zx, y: sup.zy } : { x: MAKER.zx, y: MAKER.zy };
+  const item = runner ? s.role : "shake";
   const arrived = walk(s, sp, dt);
   s.xfer -= dt;
   if (s.state === "toSource") {
     s.tx = src.x + 10; s.ty = src.y + 8;
     if (arrived) {
-      const store = towel ? G.shelf : G.maker, key = towel ? "towels" : "shakes";
+      const store = runner ? G.supply[item] : G.maker, key = runner ? "count" : "shakes";
       if (s.xfer <= 0 && store[key] > 0 && s.stack.length < staffCap()) { store[key]--; s.stack.push(item); s.xfer = 0.15; Snd.pickup(s.stack.length); }
       s.wait += dt;
       if (s.stack.length >= staffCap() || (s.stack.length && s.wait > 1.5)) { s.wait = 0; s.state = "deliver"; s.target = null; }
@@ -479,17 +539,17 @@ function updateStaff(s, dt) {
   }
   if (s.state === "deliver") {
     if (!s.target) {
-      if (towel) {
-        const needy = G.machines.filter((m) => m.towels < 3).sort((a, b) => a.towels - b.towels);
+      if (runner) {
+        const needy = G.machines.filter((m) => m.needs === item && m.stock < 3).sort((a, b) => a.stock - b.stock);
         s.target = needy[0] ? { x: needy[0].zx + 12, y: needy[0].zy + 6, m: needy[0] } : null;
       } else s.target = G.counter.shakes < 8 ? { x: COUNTER.zx + 12, y: COUNTER.zy + 8 } : null;
       if (!s.target) return;
       s.tx = s.target.x; s.ty = s.target.y;
     }
     if (arrived && s.xfer <= 0) {
-      if (towel) {
+      if (runner) {
         const m = s.target.m;
-        if (m.towels < 3 && s.stack.length) { s.stack.pop(); m.towels++; s.xfer = 0.15; }
+        if (m.stock < 3 && s.stack.length) { s.stack.pop(); m.stock++; s.xfer = 0.15; }
         else s.target = null;
       } else if (G.counter.shakes < 8 && s.stack.length) { s.stack.pop(); G.counter.shakes++; s.xfer = 0.15; }
       else s.target = null;
@@ -506,11 +566,11 @@ function goal() {
     return pad && dist(P.x, P.y, pad.x, pad.y) > 40 ? [pad.x, pad.y] : null;
   }
   const top = P.stack[P.stack.length - 1];
-  if (top === "towel") { const m = G.machines.filter((m) => m.towels < 3).sort((a, b) => a.towels - b.towels)[0]; if (m) return [m.zx, m.zy]; }
+  if (top === "towel" || top === "water") { const m = G.machines.filter((m) => m.needs === top && m.stock < 3).sort((a, b) => a.stock - b.stock)[0]; if (m) return [m.zx, m.zy]; }
   if (top === "shake") return [COUNTER.zx, COUNTER.zy];
   if (G.deskQ[0] && !hasStaff("recep") && dist(P.x, P.y, DESK.zx, DESK.zy) > ZONE_R && G.deskQ[0].bubble) return [DESK.zx, DESK.zy];
-  const dry = G.machines.find((m) => m.towels === 0);
-  if (dry && !top) return [SHELF.zx, SHELF.zy];
+  const dry = G.machines.find((m) => m.stock === 0);
+  if (dry && !top) { const s = supplyAt(dry.needs); return [s.zx, s.zy]; }
   if (G.shakeBuilt && G.counter.shakes === 0 && G.counterQ.length && !top) return [MAKER.zx, MAKER.zy];
   const piles = [G.deskCash, G.counterCash, ...G.machines.map((m) => m.cash)].filter((p) => p.amt > 0).sort((a, b) => b.amt - a.amt);
   const pad = G.pads.find((p) => save.cash >= p.cost - p.paid);
@@ -536,6 +596,10 @@ function drawItem(type, x, y, s = 1) {
     ctx.fillStyle = "#ff8fc7"; ctx.beginPath(); ctx.moveTo(x - 6 * s, y - 9 * s); ctx.lineTo(x + 6 * s, y - 9 * s); ctx.lineTo(x + 4 * s, y + 4 * s); ctx.lineTo(x - 4 * s, y + 4 * s); ctx.closePath(); ctx.fill();
     ctx.fillStyle = "#fff"; ctx.fillRect(x - 7 * s, y - 11 * s, 14 * s, 3 * s);
     ctx.fillStyle = "#2b2e45"; ctx.fillRect(x + 1 * s, y - 16 * s, 1.6 * s, 6 * s);
+  } else if (type === "water") {
+    ctx.fillStyle = "#7cc4ff"; rr(x - 4.5 * s, y - 9 * s, 9 * s, 14 * s, 3 * s); ctx.fill();
+    ctx.fillStyle = "#cfe9ff"; ctx.fillRect(x - 2.5 * s, y - 7 * s, 2 * s, 9 * s);
+    ctx.fillStyle = "#3d8bff"; ctx.fillRect(x - 3 * s, y - 12 * s, 6 * s, 3.5 * s);
   } else if (type === "cash") {
     ctx.fillStyle = "#1f9a58"; rr(x - 9 * s, y - 4 * s, 18 * s, 9 * s, 2 * s); ctx.fill();
     ctx.fillStyle = "#2fbf71"; rr(x - 9 * s, y - 5 * s, 18 * s, 8 * s, 2 * s); ctx.fill();
@@ -571,7 +635,7 @@ function drawPerson(p, opts = {}) {
   ctx.beginPath(); ctx.arc(x - 3 * sc + p.face * 1.5, hy + 1, 1.3 * sc, 0, TAU); ctx.arc(x + 3 * sc + p.face * 1.5, hy + 1, 1.3 * sc, 0, TAU); ctx.fill();
   // carried stack
   if (p.stack && p.stack.length) {
-    const gap = p.stack[0] === "shake" ? 12 : 7;
+    const gap = { shake: 12, water: 11 }[p.stack[0]] || 7;
     for (let i = 0; i < p.stack.length; i++) drawItem(p.stack[i], x + Math.sin(p.bob * 0.5 + i * 0.4) * (p.moving ? i * 0.25 : 0), by - 14 * sc - i * gap, sc);
   }
   if (p.holding) drawItem(p.holding, x + 10, by + 4, 0.7);
@@ -581,6 +645,7 @@ function drawPerson(p, opts = {}) {
     ctx.fillStyle = "#fff"; rr(bx - 14, byy - 13, 28, 24, 8); ctx.fill();
     ctx.beginPath(); ctx.moveTo(bx - 8, byy + 10); ctx.lineTo(bx - 14, byy + 18); ctx.lineTo(bx - 2, byy + 10); ctx.fill();
     if (p.bubble === "towel") drawItem("towel", bx, byy + 1, 0.85);
+    else if (p.bubble === "water") drawItem("water", bx, byy + 3, 0.8);
     else if (p.bubble === "shake") drawItem("shake", bx, byy + 4, 0.75);
     else { ctx.font = "15px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(p.bubble === "angry" ? "😠" : "🛎️", bx, byy); }
     // patience ring
@@ -601,42 +666,143 @@ function drawZone(x, y, col, active, label) {
 }
 
 function drawMachine(m) {
-  const x = m.x, y = m.y, c = m.color;
-  ctx.fillStyle = G.info.mat; rr(x - 44, y - 46, 88, 80, 12); ctx.fill();
-  if (m.type === "bench") {
-    box(x - 12, y - 30, 24, 46, "#3a3f58", "#23263a", 6, 5);
-    ctx.fillStyle = c; rr(x - 10, y - 28, 20, 40, 5); ctx.fill();
-    ctx.fillStyle = "#555b78"; ctx.fillRect(x - 34, y - 36, 68, 4);
-    ctx.fillStyle = "#23263a"; ctx.fillRect(x - 36, y - 44, 8, 20); ctx.fillRect(x + 28, y - 44, 8, 20);
-  } else if (m.type === "tread") {
-    box(x - 20, y - 38, 40, 62, "#3a3f58", "#23263a", 8, 6);
-    ctx.fillStyle = "#2b2e45"; rr(x - 15, y - 26, 30, 46, 4); ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,.12)"; ctx.lineWidth = 2;
-    const off = (G.t * (m.user && m.user.state === "workout" ? 60 : 0)) % 10;
-    for (let k = -26 + off; k < 20; k += 10) { ctx.beginPath(); ctx.moveTo(x - 14, y + k); ctx.lineTo(x + 14, y + k); ctx.stroke(); }
-    ctx.fillStyle = c; rr(x - 18, y - 44, 36, 12, 4); ctx.fill();
-  } else if (m.type === "squat") {
-    ctx.fillStyle = "#23263a"; ctx.fillRect(x - 30, y - 40, 7, 56); ctx.fillRect(x + 23, y - 40, 7, 56);
-    ctx.fillStyle = c; ctx.fillRect(x - 32, y - 42, 11, 6); ctx.fillRect(x + 21, y - 42, 11, 6);
-    ctx.fillStyle = "#555b78"; ctx.fillRect(x - 40, y - 24, 80, 4);
-    ctx.fillStyle = "#23263a"; ctx.fillRect(x - 44, y - 31, 7, 18); ctx.fillRect(x + 37, y - 31, 7, 18);
-  } else if (m.type === "dumb") {
-    box(x - 34, y - 42, 68, 20, "#3a3f58", "#23263a", 5, 5);
-    for (let k = 0; k < 4; k++) {
-      const dx = x - 26 + k * 17;
-      ctx.fillStyle = "#23263a"; ctx.fillRect(dx - 1, y - 36, 12, 3);
-      ctx.fillStyle = c; ctx.fillRect(dx - 3, y - 39, 4, 9); ctx.fillRect(dx + 9, y - 39, 4, 9);
+  const x = m.x, y = m.y, c = m.color, b = m.big ? 1.35 : 1;
+  const busy = m.user && m.user.state === "workout";
+  ctx.fillStyle = G.info.mat; rr(x - 44 * b, y - 46 * b, 88 * b, 80 * b, 12); ctx.fill();
+  switch (m.type) {
+    case "bench": case "smith":
+      if (m.type === "smith") { ctx.fillStyle = "#23263a"; ctx.fillRect(x - 36, y - 52, 6, 60); ctx.fillRect(x + 30, y - 52, 6, 60); ctx.fillStyle = c; ctx.fillRect(x - 38, y - 54, 76, 5); }
+      box(x - 12, y - 30, 24, 46, "#3a3f58", "#23263a", 6, 5);
+      ctx.fillStyle = c; rr(x - 10, y - 28, 20, 40, 5); ctx.fill();
+      ctx.fillStyle = "#555b78"; ctx.fillRect(x - 34, y - 36 + (busy ? Math.sin(G.t * 6) * 3 : 0), 68, 4);
+      ctx.fillStyle = "#23263a"; ctx.fillRect(x - 36, y - 44, 8, 20); ctx.fillRect(x + 28, y - 44, 8, 20);
+      break;
+    case "tread": case "stair": {
+      box(x - 20, y - 38, 40, 62, "#3a3f58", "#23263a", 8, 6);
+      ctx.fillStyle = "#2b2e45"; rr(x - 15, y - 26, 30, 46, 4); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,.14)"; ctx.lineWidth = m.type === "stair" ? 4 : 2;
+      const step = m.type === "stair" ? 12 : 10, off = (G.t * (busy ? 60 : 0)) % step;
+      for (let k = -26 + off; k < 20; k += step) { ctx.beginPath(); ctx.moveTo(x - 14, y + k); ctx.lineTo(x + 14, y + k); ctx.stroke(); }
+      ctx.fillStyle = c; rr(x - 18, y - 44, 36, 12, 4); ctx.fill();
+      break;
     }
-  } else if (m.type === "bag") {
-    ctx.strokeStyle = "#555b78"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y - 50); ctx.lineTo(x, y - 36); ctx.stroke();
-    const sw = m.user && m.user.state === "workout" ? Math.sin(G.t * 9) * 4 : 0;
-    box(x - 11 + sw, y - 38, 22, 36, c, "#b8394a", 10, 4);
+    case "squat":
+      ctx.fillStyle = "#23263a"; ctx.fillRect(x - 30, y - 40, 7, 56); ctx.fillRect(x + 23, y - 40, 7, 56);
+      ctx.fillStyle = c; ctx.fillRect(x - 32, y - 42, 11, 6); ctx.fillRect(x + 21, y - 42, 11, 6);
+      ctx.fillStyle = "#555b78"; ctx.fillRect(x - 40, y - 24, 80, 4);
+      ctx.fillStyle = "#23263a"; ctx.fillRect(x - 44, y - 31, 7, 18); ctx.fillRect(x + 37, y - 31, 7, 18);
+      break;
+    case "dumb":
+      box(x - 34, y - 42, 68, 20, "#3a3f58", "#23263a", 5, 5);
+      for (let k = 0; k < 4; k++) {
+        const dx = x - 26 + k * 17;
+        ctx.fillStyle = "#23263a"; ctx.fillRect(dx - 1, y - 36, 12, 3);
+        ctx.fillStyle = c; ctx.fillRect(dx - 3, y - 39, 4, 9); ctx.fillRect(dx + 9, y - 39, 4, 9);
+      }
+      break;
+    case "bag": {
+      ctx.strokeStyle = "#555b78"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y - 50); ctx.lineTo(x, y - 36); ctx.stroke();
+      const sw = busy ? Math.sin(G.t * 9) * 4 : 0;
+      box(x - 11 + sw, y - 38, 22, 36, c, "#b8394a", 10, 4);
+      break;
+    }
+    case "cable": {
+      box(x - 30, y - 50, 60, 16, "#3a3f58", "#23263a", 4, 5);
+      ctx.fillStyle = "#23263a"; ctx.fillRect(x - 30, y - 40, 6, 52); ctx.fillRect(x + 24, y - 40, 6, 52);
+      const pull = busy ? Math.sin(G.t * 5) * 6 : 0;
+      ctx.fillStyle = c; ctx.fillRect(x - 8, y - 38 + pull, 16, 14);           // weight stack
+      ctx.strokeStyle = "#7c809c"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x - 27, y - 34); ctx.lineTo(x - 6, y - 10); ctx.moveTo(x + 27, y - 34); ctx.lineTo(x + 6, y - 10); ctx.stroke();
+      break;
+    }
+    case "rower": {
+      box(x - 8, y - 46, 16, 72, "#3a3f58", "#23263a", 6, 4);
+      ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y - 40, 12, 0, TAU); ctx.fill();         // flywheel
+      ctx.fillStyle = "#23263a"; ctx.beginPath(); ctx.arc(x, y - 40, 5, 0, TAU); ctx.fill();
+      ctx.fillStyle = "#555b78"; rr(x - 10, y - 4 + (busy ? Math.sin(G.t * 5) * 8 : 0), 20, 12, 3); ctx.fill();   // sliding seat
+      break;
+    }
+    case "bike": {
+      ctx.fillStyle = "#23263a"; ctx.fillRect(x - 3, y - 34, 6, 40);
+      ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y - 36, 12, 0, TAU); ctx.fill();
+      ctx.save(); ctx.translate(x, y - 36); ctx.rotate(busy ? G.t * 8 : 0);
+      ctx.strokeStyle = "#23263a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(9, 0); ctx.moveTo(0, -9); ctx.lineTo(0, 9); ctx.stroke(); ctx.restore();
+      ctx.fillStyle = "#3a3f58"; rr(x - 18, y - 52, 36, 7, 3); ctx.fill();               // handlebars
+      ctx.fillStyle = "#2b2e45"; rr(x - 8, y + 2, 16, 8, 3); ctx.fill();                 // saddle
+      break;
+    }
+    case "legpress": {
+      ctx.save(); ctx.translate(x, y - 18); ctx.rotate(-0.35);
+      box(-12, -32, 24, 60, "#3a3f58", "#23263a", 6, 5);
+      ctx.fillStyle = c; rr(-20, -40 + (busy ? Math.sin(G.t * 4) * 5 : 0), 40, 14, 4); ctx.fill();   // sled
+      ctx.restore();
+      break;
+    }
+    case "pullup": {
+      ctx.fillStyle = "#23263a"; ctx.fillRect(x - 32, y - 56, 7, 70); ctx.fillRect(x + 25, y - 56, 7, 70);
+      ctx.fillStyle = c; ctx.fillRect(x - 34, y - 58, 68, 6);
+      ctx.fillStyle = "#555b78"; ctx.fillRect(x - 32, y - 20, 64, 4);
+      break;
+    }
+    case "ropes": {
+      ctx.fillStyle = "#3a3f58"; rr(x - 10, y - 58, 20, 16, 4); ctx.fill();               // anchor
+      ctx.strokeStyle = c; ctx.lineWidth = 5; ctx.lineCap = "round";
+      for (const side of [-1, 1]) {
+        ctx.beginPath(); ctx.moveTo(x + side * 4, y - 46);
+        for (let k = 1; k <= 8; k++) {
+          const t = k / 8, wave = busy ? Math.sin(G.t * 12 - k) * 6 * t : Math.sin(k) * 2;
+          ctx.lineTo(x + side * (4 + t * 22) + wave * side, y - 46 + t * 40);
+        }
+        ctx.stroke();
+      }
+      break;
+    }
+    case "pec": {
+      box(x - 12, y - 24, 24, 34, "#3a3f58", "#23263a", 6, 5);
+      const open = busy ? (Math.sin(G.t * 4) + 1) * 0.35 : 0.5;
+      ctx.fillStyle = c;
+      for (const side of [-1, 1]) {
+        ctx.save(); ctx.translate(x + side * 12, y - 30); ctx.rotate(side * open);
+        rr(side > 0 ? 0 : -26, -5, 26, 10, 4); ctx.fill(); ctx.restore();
+      }
+      ctx.fillStyle = "#23263a"; ctx.fillRect(x - 4, y - 52, 8, 22);
+      break;
+    }
+    case "climb": {
+      box(x - 40, y - 64, 80, 22, "#c79b6a", "#9c7448", 4, 6);                         // wall top
+      const holds = ["#ff5a6e", "#2fbf71", "#3d8bff", "#ffc531", "#a65cff"];
+      for (let k = 0; k < 9; k++) { ctx.fillStyle = holds[k % 5]; ctx.beginPath(); ctx.arc(x - 34 + (k * 23) % 68, y - 58 + (k * 7) % 14, 3.5, 0, TAU); ctx.fill(); }
+      ctx.fillStyle = "#8fa3c4"; rr(x - 36, y + 6, 72, 18, 6); ctx.fill();               // crash mat
+      break;
+    }
+    case "ring": {
+      ctx.fillStyle = "#3d8bff"; rr(x - 54, y - 64, 108, 92, 6); ctx.fill();
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2;
+      for (const d of [0, 7, 14]) ctx.strokeRect(x - 54 + d * 0.4, y - 64 + d * 0.4, 108 - d * 0.8, 92 - d * 0.8);
+      ctx.fillStyle = "#ff5a6e";
+      for (const [cx, cy] of [[-54, -64], [54, -64], [-54, 28], [54, 28]]) { ctx.beginPath(); ctx.arc(x + cx, y + cy, 5, 0, TAU); ctx.fill(); }
+      break;
+    }
+    case "sauna": {
+      box(x - 50, y - 70, 100, 72, "#c98e5a", "#9c6644", 8, 8);
+      ctx.strokeStyle = "#9c6644"; ctx.lineWidth = 2;
+      for (let k = 1; k < 6; k++) { ctx.beginPath(); ctx.moveTo(x - 50, y - 70 + k * 12); ctx.lineTo(x + 50, y - 70 + k * 12); ctx.stroke(); }
+      ctx.fillStyle = "rgba(255,255,255,.35)";
+      for (let k = 0; k < 3; k++) { const ph = (G.t * 0.6 + k / 3) % 1; ctx.globalAlpha = (1 - ph) * 0.6; ctx.beginPath(); ctx.arc(x - 20 + k * 20, y - 74 - ph * 24, 6 + ph * 6, 0, TAU); ctx.fill(); }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#2b2e45"; rr(x - 12, y - 18, 24, 22, 3); ctx.fill();             // door
+      break;
+    }
   }
-  // towel tray
-  for (let k = 0; k < 3; k++) {
-    if (k < m.towels) drawItem("towel", x - 24 + k * 0, y + 30 - k * 5, 0.75);
+  // supply tray (towels or water bottles)
+  for (let k = 0; k < m.stock; k++) {
+    if (m.needs === "towel") drawItem("towel", x - 26 * b, y + 30 * b - k * 5, 0.75);
+    else drawItem("water", x - 30 * b + k * 8, y + 32 * b, 0.7);
   }
-  if (!m.towels) { ctx.fillStyle = "rgba(255,90,110,.9)"; ctx.font = "bold 11px system-ui"; ctx.textAlign = "center"; ctx.fillText("NO TOWEL", x, y + 34); }
+  if (!m.stock) {
+    ctx.fillStyle = "rgba(255,90,110,.9)"; ctx.font = "bold 11px system-ui"; ctx.textAlign = "center";
+    ctx.fillText(m.needs === "towel" ? "NO TOWEL" : "NO WATER", x, y + 34 * b);
+  }
 }
 
 function drawPile(p) {
@@ -647,7 +813,10 @@ function drawPile(p) {
 function drawPad(pad) {
   const x = pad.x, y = pad.y, s = 30;
   ctx.save();
-  if (pad.kind === "machine") { ctx.globalAlpha = 0.35; ctx.setLineDash([6, 5]); ctx.strokeStyle = "#7c809c"; ctx.lineWidth = 2; rr(x - 44, y - 46, 88, 80, 12); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1; }
+  if (pad.kind === "machine") {
+    const b = MTYPES[SLOTS[pad.slot].type].big ? 1.35 : 1;
+    ctx.globalAlpha = 0.35; ctx.setLineDash([6, 5]); ctx.strokeStyle = "#7c809c"; ctx.lineWidth = 2; rr(x - 44 * b, y - 46 * b, 88 * b, 80 * b, 12); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
   const afford = save.cash >= pad.cost - pad.paid;
   ctx.fillStyle = "rgba(255,255,255,.85)"; rr(x - s, y - s * 0.75, s * 2, s * 1.5, 12); ctx.fill();
   const f = pad.paid / pad.cost;
@@ -655,7 +824,7 @@ function drawPad(pad) {
   ctx.strokeStyle = afford ? "#2fbf71" : "#ffc531"; ctx.lineWidth = 3; rr(x - s, y - s * 0.75, s * 2, s * 1.5, 12); ctx.stroke();
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.font = "16px system-ui";
-  const icon = pad.kind === "machine" ? { bench: "🏋️", tread: "🏃", squat: "🦵", dumb: "💪", bag: "🥊" }[SLOTS[pad.slot].type]
+  const icon = pad.kind === "machine" ? MTYPES[SLOTS[pad.slot].type].icon
     : pad.kind === "shake" ? "🥤" : pad.kind === "hire" ? "🧑‍💼" : "🏢";
   ctx.fillText(icon, x, y - 8);
   ctx.font = "900 12px system-ui"; ctx.fillStyle = "#2b2e45";
@@ -672,26 +841,38 @@ function drawRoom() {
   // floor tiles
   ctx.fillStyle = info.floor; ctx.fillRect(0, 0, ROOM.w, ROOM.h);
   ctx.fillStyle = info.tile;
-  for (let y = 0; y < ROOM.h; y += 48) for (let x = (y / 48) % 2 ? 48 : 0; x < ROOM.w; x += 96) ctx.fillRect(x, y, 48, 48);
+  for (let y = 0; y < ROOM.h; y += 48) for (let x = (y / 48) % 2 ? 48 : 0; x < ROOM.w; x += 96) ctx.fillRect(x, y, Math.min(48, ROOM.w - x), Math.min(48, ROOM.h - y));
   // walls
   ctx.fillStyle = info.wall; ctx.fillRect(-16, -54, ROOM.w + 32, 54);
   ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.fillRect(-16, -12, ROOM.w + 32, 12);
   ctx.fillStyle = info.wall; ctx.fillRect(-16, 0, 16, ROOM.h); ctx.fillRect(ROOM.w, 0, 16, ROOM.h);
-  ctx.fillRect(-16, ROOM.h, 356 + 16, 14); ctx.fillRect(404, ROOM.h, ROOM.w + 16 - 404, 14);
+  ctx.fillRect(-16, ROOM.h, DOOR.x - 32 + 16, 14); ctx.fillRect(DOOR.x + 32, ROOM.h, ROOM.w + 16 - DOOR.x - 32, 14);
   // gym sign on the back wall
   ctx.fillStyle = "#fff"; ctx.font = "900 20px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.fillText(info.name.toUpperCase(), ROOM.w / 2, -30);
   // door mat
-  ctx.fillStyle = "#c7b9a0"; rr(342, ROOM.h - 24, 60, 22, 4); ctx.fill();
+  ctx.fillStyle = "#c7b9a0"; rr(DOOR.x - 30, ROOM.h - 24, 60, 22, 4); ctx.fill();
 }
 
 function drawStations() {
   const P = G.player;
   const near = (x, y) => dist(P.x, P.y, x, y) < ZONE_R + 6;
   // towel shelf
-  box(SHELF.x - 22, SHELF.y - 40, 32, 70, "#8b6b4a", "#6b5038", 4, 6);
-  for (let i = 0; i < Math.min(G.shelf.towels, 12); i++) drawItem("towel", SHELF.x - 6, SHELF.y + 22 - i * 5, 0.8);
-  drawZone(SHELF.zx, SHELF.zy, "#3d8bff", near(SHELF.zx, SHELF.zy));
+  for (const sp of SUPPLIES) {
+    const n = Math.min(G.supply[sp.item].count, 12);
+    if (sp.item === "towel") {
+      box(sp.x - 22, sp.y - 40, 32, 70, "#8b6b4a", "#6b5038", 4, 6);
+      for (let i = 0; i < n; i++) drawItem("towel", sp.x - 6, sp.y + 22 - i * 5, 0.8);
+      drawZone(sp.zx, sp.zy, "#3d8bff", near(sp.zx, sp.zy));
+    } else {
+      // water cooler: blue jug on a white stand, bottles lined up in front
+      box(sp.x - 18, sp.y - 30, 36, 56, "#f4f7fb", "#c9d3e0", 6, 6);
+      ctx.fillStyle = "#7cc4ff"; ctx.beginPath(); ctx.ellipse(sp.x, sp.y - 42, 14, 16, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,.5)"; ctx.fillRect(sp.x - 7, sp.y - 52, 4, 16);
+      for (let i = 0; i < n; i++) drawItem("water", sp.x - 12 + (i % 4) * 8, sp.y + 22 - Math.floor(i / 4) * 12, 0.7);
+      drawZone(sp.zx, sp.zy, "#7cc4ff", near(sp.zx, sp.zy));
+    }
+  }
   // bin
   shadow(BIN.x, BIN.y + 8, 12); box(BIN.x - 10, BIN.y - 14, 20, 22, "#7c809c", "#555b78", 5, 4);
   // front desk
@@ -732,7 +913,7 @@ function draw() {
 
   // stack-full hint
   const P = G.player;
-  if (P.stack.length >= playerCap()) { ctx.fillStyle = "#ff5a6e"; ctx.font = "900 11px system-ui"; ctx.textAlign = "center"; ctx.fillText("MAX", P.x, P.y - 56 - P.stack.length * (P.stack[0] === "shake" ? 12 : 7)); }
+  if (P.stack.length >= playerCap()) { ctx.fillStyle = "#ff5a6e"; ctx.font = "900 11px system-ui"; ctx.textAlign = "center"; ctx.fillText("MAX", P.x, P.y - 56 - P.stack.length * ({ shake: 12, water: 11 }[P.stack[0]] || 7)); }
 
   // flying items
   for (const f of G.fly) {
@@ -850,7 +1031,7 @@ function openNextGym() {
 
 function offlineEarnings() {
   if (!save.lastSeen || !save.rate) return;
-  const anyStaff = save.g.built.some((id) => ["recep", "towel", "barista"].includes(id));
+  const anyStaff = save.g.built.some((id) => ["recep", "towel", "water", "barista"].includes(id));
   if (!anyStaff) return;
   const secs = Math.min((Date.now() - save.lastSeen) / 1000, 2 * 3600);
   if (secs < 60) return;
