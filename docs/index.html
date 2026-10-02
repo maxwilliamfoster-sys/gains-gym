@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Gains Gym</title>
+<style>
+  :root {
+    --ink: #ffffff;
+    --dark: #23263a;
+    --panel: #fffaf0;
+    --panel-ink: #2b2e45;
+    --muted: #7c809c;
+    --cash: #2fbf71;
+    --gold: #ffc531;
+    --blue: #3d8bff;
+    --ad: #a65cff;
+    --red: #ff5a6e;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #2b2f45; color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; touch-action: none; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .hidden { display: none !important; }
+  button { font: inherit; border: 0; cursor: pointer; pointer-events: auto; transition: transform .08s; }
+  button:active { transform: scale(.93); }
+
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  .top { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 10px; right: 10px; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .cash { background: rgba(20, 22, 36, .78); border-radius: 999px; padding: 6px 14px 6px 8px; display: flex; align-items: center; gap: 8px;
+    font-weight: 900; font-size: 22px; min-width: 110px; }
+  .bill { width: 26px; height: 17px; border-radius: 3px; background: var(--cash); box-shadow: inset 0 0 0 2px #1f9a58; position: relative; }
+  .bill::after { content: "£"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; font-weight: 900; color: #e9ffef; }
+  .gymname { text-align: center; flex: 1; padding-top: 2px; }
+  .gymname b { display: block; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; text-shadow: 0 2px 6px rgba(0,0,0,.5); }
+  .bar { margin: 5px auto 0; width: min(46vw, 200px); height: 8px; border-radius: 8px; background: rgba(20,22,36,.6); overflow: hidden; }
+  .bar div { height: 100%; width: 0; background: linear-gradient(90deg, var(--gold), #ff8a3d); transition: width .3s; }
+  .round { width: 44px; height: 44px; border-radius: 50%; background: rgba(20, 22, 36, .78); color: #fff; font-size: 20px; }
+  .bottom { position: absolute; left: 12px; right: 12px; bottom: max(14px, env(safe-area-inset-bottom)); display: flex; justify-content: space-between; align-items: flex-end; }
+  .big { width: 66px; height: 66px; border-radius: 20px; color: #fff; font-weight: 900; font-size: 11px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 2px; position: relative; box-shadow: 0 5px 0 rgba(0,0,0,.25); }
+  .big .ic { font-size: 26px; line-height: 1; }
+  #upBtn { background: var(--blue); }
+  #boostBtn { background: var(--ad); }
+  .dot { position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; border-radius: 50%; background: var(--red); border: 3px solid #fff; }
+  #boostTimer { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(24px, env(safe-area-inset-bottom)); background: var(--ad);
+    padding: 6px 12px; border-radius: 999px; font-weight: 900; font-size: 14px; }
+  .vid { display: inline-block; width: 18px; height: 13px; border-radius: 3px; background: #fff; position: relative; vertical-align: -1px; }
+  .vid::after { content: ""; position: absolute; left: 7px; top: 3px; border-left: 6px solid var(--ad); border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent; }
+
+  .modal { position: fixed; inset: 0; background: rgba(15, 17, 30, .6); display: flex; align-items: center; justify-content: center; padding: 14px; z-index: 5; }
+  .card { width: 100%; max-width: 400px; background: var(--panel); color: var(--panel-ink); border-radius: 24px; padding: 18px 14px 16px;
+    box-shadow: 0 18px 50px rgba(0,0,0,.45); text-align: center; }
+  .card h2 { margin: 0 0 10px; font-size: 26px; font-weight: 900; }
+  .card p { margin: 6px 0 0; color: var(--muted); font-weight: 700; }
+  .upg { display: flex; align-items: center; gap: 10px; background: #fff; border-radius: 16px; padding: 10px; margin-bottom: 8px; text-align: left;
+    box-shadow: 0 2px 0 rgba(0,0,0,.06); }
+  .upg .ic { font-size: 28px; width: 40px; text-align: center; }
+  .upg .txt { flex: 1; }
+  .upg b { display: block; font-size: 15px; }
+  .upg small { color: var(--muted); font-weight: 700; font-size: 12px; }
+  .pips { display: flex; gap: 3px; margin-top: 5px; }
+  .pips i { flex: 1; max-width: 22px; height: 6px; border-radius: 3px; background: #e3e0d6; }
+  .pips i.on { background: var(--gold); }
+  .buy { min-width: 76px; padding: 10px 8px; border-radius: 12px; background: var(--cash); color: #fff; font-weight: 900; font-size: 14px; box-shadow: 0 3px 0 #1f9a58; }
+  .buy:disabled { background: #d6d2c6; color: #8f8b80; box-shadow: none; }
+  .btn { width: 100%; padding: 14px; border-radius: 16px; font-weight: 900; font-size: 18px; color: #fff; background: var(--blue); box-shadow: 0 5px 0 #2a63bd; margin-top: 8px; }
+  .btn.ad { background: var(--ad); box-shadow: 0 5px 0 #7638c0; }
+  .btn.plain { background: #e9e5d9; color: var(--panel-ink); box-shadow: none; }
+  .earn { font-size: 34px; font-weight: 900; color: var(--cash); margin: 6px 0 4px; }
+
+  #title { position: fixed; left: 0; right: 0; top: 13%; text-align: center; pointer-events: none; transition: opacity .4s; }
+  #title h1 { margin: 0; font-size: clamp(44px, 12vw, 76px); font-weight: 900; line-height: .9; color: #fff;
+    text-shadow: 0 5px 0 #c9452f, 0 10px 24px rgba(0,0,0,.4); letter-spacing: .02em; }
+  #title h1 span { color: var(--gold); text-shadow: 0 5px 0 #c27a00, 0 10px 24px rgba(0,0,0,.4); }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div class="top">
+    <div class="cash"><span class="bill"></span><span id="cash">£0</span></div>
+    <div class="gymname"><b id="gymName">Gains Gym</b><div class="bar"><div id="progress"></div></div></div>
+    <button class="round" id="muteBtn" aria-label="Sound">🔊</button>
+  </div>
+  <div class="bottom">
+    <button class="big hidden" id="boostBtn"><span class="ic">💰</span><span><span class="vid"></span> x2 CASH</span></button>
+    <span></span>
+    <button class="big" id="upBtn"><span class="ic">⬆️</span>UPGRADES<span class="dot hidden" id="upDot"></span></button>
+  </div>
+  <div id="boostTimer" class="hidden">x2 CASH · <span id="boostLeft">60</span>s</div>
+</div>
+
+<div id="title"><h1>GAINS<br><span>GYM</span></h1></div>
+
+<div id="modal" class="modal hidden"><div class="card" id="card"></div></div>
+
+<script>
+  // Poki SDK shim: the game runs anywhere; the real SDK takes over on Poki.
+  window.__pokiShim = {
+    init: () => Promise.resolve(), gameLoadingFinished() {}, gameplayStart() {}, gameplayStop() {},
+    commercialBreak: () => Promise.resolve(),
+    rewardedBreak: (before) => { before && before(); return new Promise(r => setTimeout(() => r(true), 400)); },
+    setDebug() {},
+  };
+  (function () {
+    const h = location.hostname;
+    const offPoki = h === "localhost" || h === "127.0.0.1" || h.endsWith("github.io") || location.protocol === "file:";
+    if (offPoki && !/[?&]poki\b/.test(location.search)) window.PokiSDK = window.__pokiShim;
+    else document.write('<script src="https://game-cdn.poki.com/scripts/v2/poki-sdk.js"><\/script>');
+  })();
+</script>
+<script>if (!window.PokiSDK) window.PokiSDK = window.__pokiShim;</script>
+<script src="game.js"></script>
+</body>
+</html>
